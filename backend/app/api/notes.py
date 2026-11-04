@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
+from app.core.websocket_manager import manager
 from app.models.membership import Membership
 from app.models.note import Note
 from app.models.user import User
@@ -74,7 +75,7 @@ def get_accessible_note(
     response_model=NoteResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def create_note(
+async def create_note(
     space_id: int,
     note_data: NoteCreate,
     current_user: User = Depends(get_current_user),
@@ -96,6 +97,17 @@ def create_note(
     db.add(note)
     db.commit()
     db.refresh(note)
+
+    await manager.broadcast(
+        space_id=space_id,
+        message={
+            "type": "note.created",
+            "space_id": space_id,
+            "note": NoteResponse.model_validate(note).model_dump(
+                mode="json"
+            ),
+        },
+    )
 
     return note
 
@@ -146,7 +158,7 @@ def get_note(
     "/{note_id}",
     response_model=NoteResponse,
 )
-def update_note(
+async def update_note(
     space_id: int,
     note_id: int,
     note_data: NoteUpdate,
@@ -171,6 +183,18 @@ def update_note(
     db.commit()
     db.refresh(note)
 
+    await manager.broadcast(
+        space_id=space_id,
+        message={
+            "type": "note.updated",
+            "space_id": space_id,
+            "note": NoteResponse.model_validate(note).model_dump(
+                mode="json"
+            ),
+            "updated_by": current_user.id,
+        },
+    )
+
     return note
 
 
@@ -178,7 +202,7 @@ def update_note(
     "/{note_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-def delete_note(
+async def delete_note(
     space_id: int,
     note_id: int,
     current_user: User = Depends(get_current_user),
@@ -191,8 +215,20 @@ def delete_note(
         db=db,
     )
 
+    deleted_note_id = note.id
+
     db.delete(note)
     db.commit()
+
+    await manager.broadcast(
+        space_id=space_id,
+        message={
+            "type": "note.deleted",
+            "space_id": space_id,
+            "note_id": deleted_note_id,
+            "deleted_by": current_user.id,
+        },
+    )
 
     return Response(
         status_code=status.HTTP_204_NO_CONTENT

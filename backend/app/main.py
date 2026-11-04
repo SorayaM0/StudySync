@@ -6,6 +6,7 @@ from app.api.auth import router as auth_router
 from app.api.memberships import router as memberships_router
 from app.api.notes import router as notes_router
 from app.api.study_spaces import router as study_spaces_router
+from app.api.websockets import router as websockets_router
 from app.core.database import engine
 
 
@@ -30,6 +31,7 @@ app.include_router(auth_router)
 app.include_router(study_spaces_router)
 app.include_router(memberships_router)
 app.include_router(notes_router)
+app.include_router(websockets_router)
 
 
 @app.get("/")
